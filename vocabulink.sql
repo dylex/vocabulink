@@ -1,8 +1,16 @@
 -- vocabulink.sql
 
+CREATE EXTENSION tablefunc;
+
 -- I would use regexp checks and domains at the database level if they worked
 -- for unicode characters. Instead, I'll leave it up to the Haskell layer to do
 -- verification.
+
+CREATE TABLE language (
+       abbr CHARACTER VARYING (3) PRIMARY KEY,
+       name TEXT UNIQUE NOT NULL
+);
+COMMENT ON COLUMN language.abbr IS 'We use 2-letter language codes (ISO 639-1) when available and 3-letter codes for languages that don''t have a 2-letter code (the notable case of which is Lojban which any self-respecting language-learning site should support.';
 
 CREATE TABLE member (
        member_no SERIAL PRIMARY KEY,
@@ -41,8 +49,8 @@ COMMENT ON COLUMN password_reset_token.hash IS 'This is a random hash that we ca
 
 CREATE TABLE link (
        link_no SERIAL PRIMARY KEY,
-       learn TEXT NOT NULL CHECK (length(foreign_phrase) > 0),
-       known TEXT NOT NULL CHECK (length(familiar_phrase) > 0),
+       learn TEXT NOT NULL CHECK (length(learn) > 0),
+       known TEXT NOT NULL CHECK (length(known) > 0),
        learn_lang CHARACTER VARYING (3) REFERENCES language (abbr) ON UPDATE CASCADE NOT NULL,
        known_lang CHARACTER VARYING (3) REFERENCES language (abbr) ON UPDATE CASCADE NOT NULL,
        soundalike BOOLEAN NOT NULL DEFAULT FALSE,
@@ -52,8 +60,8 @@ CREATE TABLE link (
 COMMENT ON TABLE link IS 'A link is an association between 2 words (or phrases) in a single direction.';
 COMMENT ON COLUMN link.deleted IS 'We need a way to delete links, but we don''t want to destroy people''s review decks. This allows us to mark deleted links so that we don''t display them to people who aren''t already reviewing them and we can later sweep ones with no references.';
 -- We're going to search by these often.
-CREATE INDEX link_foreign_phrase_index ON link (foreign_phrase);
-CREATE INDEX link_familiar_phrase_index ON link (familiar_phrase);
+CREATE INDEX link_learn_index ON link (learn);
+CREATE INDEX link_known_index ON link (known);
 
 CREATE TABLE linkword_story (
        story_no SERIAL PRIMARY KEY,
@@ -83,7 +91,7 @@ CREATE TABLE link_review (
        recall_time INTEGER NOT NULL,
        PRIMARY KEY (member_no, link_no, actual_time)
 );
-COMMENT ON COLUMN link_review.recall IS 'Recall is a measure of how easy or complete the memory of a link was. 1.0 is perfect recall. 0.0 means "no clue".';
+COMMENT ON COLUMN link_review.recall_grade IS 'Recall is a measure of how easy or complete the memory of a link was. 1.0 is perfect recall. 0.0 means "no clue".';
 COMMENT ON COLUMN link_review.recall_time IS 'Recall time is the amount of time (in milliseconds) taken to recall (or not) the destination of a link. It could be measured as the time between when the page is displayed and when the destination lexeme is shown (using JavaScript).';
 
 CREATE TABLE link_sm2 (
@@ -118,6 +126,16 @@ CREATE TABLE reader_page (
        PRIMARY KEY (reader_no, page_no)
 );
 COMMENT ON TABLE reader_page IS 'Readers are organized into pages. Page length is determined by how many new words are introduced or by how many new concepts are introduced. Basically, a page should be readable by the learner in a single session.';
+
+-- Comments
+
+CREATE TABLE comment (
+       comment_no SERIAL PRIMARY KEY,
+       author INTEGER REFERENCES member (member_no) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
+       time TIMESTAMP (0) WITH TIME ZONE NOT NULL DEFAULT current_timestamp,
+       body TEXT,
+       parent_no INTEGER REFERENCES comment (comment_no) ON DELETE CASCADE
+);
 
 -- Articles: Essays, Blog Posts, Disclaimers, etc. --
 
@@ -154,16 +172,6 @@ END; $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER add_root_comment AFTER INSERT ON article FOR EACH ROW
 EXECUTE PROCEDURE create_article_root_comment();
-
--- Comments
-
-CREATE TABLE comment (
-       comment_no SERIAL PRIMARY KEY,
-       author INTEGER REFERENCES member (member_no) ON UPDATE CASCADE ON DELETE CASCADE NOT NULL,
-       time TIMESTAMP (0) WITH TIME ZONE NOT NULL DEFAULT current_timestamp,
-       body TEXT,
-       parent_no INTEGER REFERENCES comment (comment_no) ON DELETE CASCADE
-);
 
 -- Some objects don't have a meaningful root comment. Instead, commenters
 -- comment on the object itself. For those, we need a virtual root comment
@@ -223,29 +231,24 @@ EXECUTE PROCEDURE create_link_root_comment();
 -- the language appears on either side of a link to find out.
 CREATE VIEW language_frequency AS
 SELECT lang.abbr, lang.name, SUM(t.freq) AS freq FROM
-((SELECT origin_language AS abbr, COUNT(*) AS freq
+((SELECT learn_lang AS abbr, COUNT(*) AS freq
  FROM link
  WHERE NOT deleted
- GROUP BY origin_language) UNION
-(SELECT destination_language AS abbr, COUNT(*) AS freq
+ GROUP BY learn_lang) UNION
+(SELECT known_lang AS abbr, COUNT(*) AS freq
  FROM link
  WHERE NOT deleted
- GROUP BY destination_language)) AS t
+ GROUP BY known_lang)) AS t
 INNER JOIN language lang USING (abbr)
 GROUP BY lang.abbr, lang.name;
 
 CREATE VIEW language_frequency_to_english AS
 SELECT lang.abbr, lang.name, COUNT(*) AS freq
 FROM link
-INNER JOIN language lang ON (lang.abbr = link.origin_language)
-WHERE NOT deleted AND destination_language = 'en'
+INNER JOIN language lang ON (lang.abbr = link.learn_lang)
+WHERE NOT deleted AND known_lang = 'en'
 GROUP BY lang.abbr, lang.name;
 
-CREATE TABLE language (
-       abbr CHARACTER VARYING (3) PRIMARY KEY,
-       name TEXT UNIQUE NOT NULL
-);
-COMMENT ON COLUMN language.abbr IS 'We use 2-letter language codes (ISO 639-1) when available and 3-letter codes for languages that don''t have a 2-letter code (the notable case of which is Lojban which any self-respecting language-learning site should support.';
 INSERT INTO language (abbr, name) VALUES
 ('aa','Afar'),
 ('ab','Abkhazian'),
