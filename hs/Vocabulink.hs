@@ -58,7 +58,7 @@ import Prelude hiding (div, span, id, words)
 import Control.Concurrent (forkIO)
 import Control.Exception (finally, SomeException)
 import Control.Monad (forever)
-import Control.Monad.CatchIO (MonadCatchIO(..))
+import Control.Monad.Catch (MonadCatch(..), MonadThrow(..))
 import Control.Monad.State (State, runState, get, put)
 import qualified Data.ByteString.UTF8 as BU
 import qualified Data.ByteString.Lazy.UTF8 as BLU
