@@ -35,6 +35,7 @@ js_reader := reader
 
 define js_template
 js/compiled/$(1).js : $$(js_$(1):%=js/%.js)
+	mkdir -p js/compiled
 	cat $$^ | jsmin > $$@
 JS += js/compiled/$(1).js
 endef
@@ -71,6 +72,7 @@ css_reader := reader
 
 define css_template
 css/compiled/$(1).css : $$(css_$(1):%=css/%.sass) $$(css_$(1)_css:%=css/%.css) css/lib.sass
+	mkdir -p css/compiled
 	cat css/lib.sass $$(css_$(1):%=css/%.sass) | sass | cat - $$(css_$(1)_css:%=css/%.css) > $$@
 CSS += css/compiled/$(1).css
 endef
