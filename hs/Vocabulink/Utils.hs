@@ -109,6 +109,7 @@ import Data.List.Utils as LU -- MissingH
 import Data.Maybe (fromMaybe, fromJust, isJust, isNothing, mapMaybe, catMaybes)
 import Data.Monoid
 import Database.TemplatePG
+import Database.TemplatePG.SQL
 import Debug.Trace (trace)
 import Data.Bool.HT (if')
 -- Time is notoriously difficult to deal with in Haskell. It gets especially
