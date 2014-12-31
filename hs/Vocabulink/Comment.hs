@@ -27,13 +27,12 @@ import Vocabulink.Utils
 import Prelude hiding (div, span, id)
 
 import Data.Int (Int32)
-import Data.Time.LocalTime (ZonedTime)
 
 data Comment = Comment { commentNo       :: Int32
                        , commentLevel    :: Int32
                        , commentUsername :: String
                        , commentEmail    :: String
-                       , commentTime     :: ZonedTime
+                       , commentTime     :: UTCTime
                        , commentBody     :: String
                        }
 

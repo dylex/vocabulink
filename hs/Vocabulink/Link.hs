@@ -39,7 +39,6 @@ import Text.Blaze.Html5.Attributes (preload)
 import System.IO.Unsafe (unsafePerformIO)
 
 import Data.Int (Int32)
-import Data.Time.LocalTime (ZonedTime)
 
 -- TODO: Get rid of these by just using Aeson directly.
 import Data.Aeson.QQ (aesonQQ)
@@ -162,7 +161,7 @@ linksContaining q = do
 data Story = Story { storyNumber :: Int32
                    , storyBody :: String
                    , storyAuthor :: Member
-                   , storyEdited :: ZonedTime
+                   , storyEdited :: UTCTime
                    }
 
 instance ToMarkup Story where

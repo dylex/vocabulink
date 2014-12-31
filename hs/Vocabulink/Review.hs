@@ -42,7 +42,6 @@ import Data.Int (Int32, Int64)
 import Data.List (genericLength)
 import Data.Time.Calendar (toGregorian)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
-import Data.Time.LocalTime (utcToLocalZonedTime)
 
 import Prelude hiding (div, span, id)
 
@@ -84,17 +83,17 @@ scheduleNextReview :: E (Member -> Int32 -> Float -> Int32 -> EpochTime -> IO ()
 scheduleNextReview m linkNo recallGrade recallTime reviewedAt = do
   previous <- fromJust <$> previousInterval m linkNo
   diff <- SM2.reviewInterval (memberNumber m) linkNo previous recallGrade
-  reviewedAtZT <- utcToLocalZonedTime $ posixSecondsToUTCTime $ realToFrac reviewedAt
+  let reviewedAtT = posixSecondsToUTCTime $ realToFrac reviewedAt
   liftIO $ withTransaction ?db $ do
     $(execute
       "INSERT INTO link_review (member_no, link_no, recall_grade, recall_time, actual_time, \
                                \target_time) \
-                       \VALUES ({memberNumber m}, {linkNo}, {recallGrade}, {recallTime}, {reviewedAtZT}, \
+                       \VALUES ({memberNumber m}, {linkNo}, {recallGrade}, {recallTime}, {reviewedAtT}, \
                                \(SELECT target_time FROM link_to_review \
                                 \WHERE member_no = {memberNumber m} AND link_no = {linkNo}))") ?db
     $(execute
       "UPDATE link_to_review \
-      \SET target_time = {reviewedAtZT}::timestamp with time zone + {diff}::interval \
+      \SET target_time = {reviewedAtT}::timestamp with time zone + {diff}::interval \
       \WHERE member_no = {memberNumber m} AND link_no = {linkNo}") ?db
 
 -- There are at least 2 ways to decide which links should be brought up for

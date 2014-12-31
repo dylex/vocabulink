@@ -25,7 +25,6 @@ import Vocabulink.Utils hiding ((<$$>), readFile)
 
 import Data.ByteString (readFile)
 import Data.Int (Int32)
-import Data.Time.LocalTime (ZonedTime)
 import Text.Blaze (unsafeByteString)
 import qualified Text.Blaze.Html5 as Html5
 
@@ -42,8 +41,8 @@ import Prelude hiding (div, span, id, readFile)
 
 data Article = Article { articleFilename    :: FilePath
                        , articleAuthor      :: Int32
-                       , articlePublishTime :: ZonedTime
-                       , articleUpdateTime  :: ZonedTime
+                       , articlePublishTime :: UTCTime
+                       , articleUpdateTime  :: UTCTime
                        , articleSection     :: Maybe String
                        , articleTitle       :: String
                        }
@@ -61,7 +60,7 @@ getArticle filename = liftM articleFromTuple <$> $(queryTuple
 
 -- As with links, we use a helper function to convert a raw SQL tuple.
 
-articleFromTuple :: (FilePath, Int32, ZonedTime, ZonedTime, Maybe String, String) -> Article
+articleFromTuple :: (FilePath, Int32, UTCTime, UTCTime, Maybe String, String) -> Article
 articleFromTuple (f, a', p', u, s, t) =
   Article { articleFilename     = f
           , articleAuthor       = a'
