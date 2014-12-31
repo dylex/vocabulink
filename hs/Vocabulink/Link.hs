@@ -38,8 +38,12 @@ import Text.Blaze.Html5.Attributes (preload)
 
 import System.IO.Unsafe (unsafePerformIO)
 
+import Data.Int (Int32)
+import Data.Time.LocalTime (ZonedTime)
+
 -- TODO: Get rid of these by just using Aeson directly.
 import Data.Aeson.QQ (aesonQQ)
+import Data.Aeson.TH (Options(..), defaultOptions)
 import qualified Data.Aeson.Generic
 import qualified Data.Aeson.Types
 import qualified Data.Text
@@ -47,7 +51,7 @@ import qualified Data.Vector
 
 import Prelude hiding (span, id, div)
 
-data Link = Link { linkNumber     :: Integer
+data Link = Link { linkNumber     :: Int32
                  , linkLearn      :: String
                  , linkKnown      :: String
                  , linkLearnLang  :: String
@@ -103,7 +107,7 @@ instance ToMarkup Link where
                                   sprite "icon" "audio"
                            else mempty
 
-$(deriveToJSON (lowercase . drop 4) ''Link)
+$(deriveToJSON defaultOptions{ fieldLabelModifier = lowercase . drop 4 } ''Link)
 
 compactLinkJSON :: Link -> Value
 compactLinkJSON link =
@@ -112,17 +116,17 @@ compactLinkJSON link =
   -- We don't need to send the language information as the new review process only
   -- operates on 1 set of languages at a time.
   let e = linkExtra link
-  in [aesonQQ| [ <| linkNumber link |>
-               , <| linkLearn link |>
-               , <| linkKnown link |>
-               , <<e>>
+  in [aesonQQ| [ #{ linkNumber link }
+               , #{ linkLearn link }
+               , #{ linkKnown link }
+               , #{e}
                ] |]
  where linkExtra l
-         | isJust (linkWord l) = [aesonQQ| {"linkword": <| fromJust (linkWord l) |>} |]
-         | linkSoundalike l    = [aesonQQ| {"soundalike": <| True |>} |]
+         | isJust (linkWord l) = [aesonQQ| {"linkword": #{ fromJust (linkWord l) } } |]
+         | linkSoundalike l    = [aesonQQ| {"soundalike": #{ True } } |]
          | otherwise           = Null
 
-linkDetails :: E (Integer -> IO (Maybe Link))
+linkDetails :: E (Int32 -> IO (Maybe Link))
 linkDetails linkNo =
   uncurryN Link <$$> $(queryTuple
     "SELECT link_no, learn, known, learn_lang, known_lang, soundalike, linkword \
@@ -155,10 +159,10 @@ linksContaining q = do
     \ORDER BY char_length(learn)") ?db
   return $ nub $ exacts ++ closes
 
-data Story = Story { storyNumber :: Integer
+data Story = Story { storyNumber :: Int32
                    , storyBody :: String
                    , storyAuthor :: Member
-                   , storyEdited :: UTCTime
+                   , storyEdited :: ZonedTime
                    }
 
 instance ToMarkup Story where
@@ -175,20 +179,20 @@ instance ToMarkup Story where
             br
             span ! class_ "date" $ toMarkup $ prettyPrint $ storyEdited story
 
-$(deriveToJSON (drop 5) ''Story)
+$(deriveToJSON defaultOptions{ fieldLabelModifier = drop 5 } ''Story)
 
-addStory :: E (Integer -> String -> IO ())
+addStory :: E (Int32 -> String -> IO ())
 addStory linkNo story = withVerifiedMember $ \ m -> do
   $(execute "INSERT INTO linkword_story (link_no, author, story) \
                                 \VALUES ({linkNo}, {memberNumber m}, {story})") ?db
 
 -- Return the unformatted body of the story.
 -- TODO: Why isn't this returning a Story value?
-getStory :: E (Integer -> IO (Maybe String))
+getStory :: E (Int32 -> IO (Maybe String))
 getStory storyNo = $(queryTuple "SELECT story FROM linkword_story WHERE story_no = {storyNo}") ?db
 
 -- This needs to be in a permissions system.
-storyEditable :: E (Integer -> IO Bool)
+storyEditable :: E (Int32 -> IO Bool)
 storyEditable n =
   case ?member of
     Nothing -> return False
@@ -200,13 +204,13 @@ storyEditable n =
         Just a' -> return $ a' == memberNumber m || memberNumber m == 1
 
 -- TODO: Throw an error when not authorized.
-editStory :: E (Integer -> String -> IO ())
+editStory :: E (Int32 -> String -> IO ())
 editStory n s = withVerifiedMember $ \m -> do
   $(execute "UPDATE linkword_story \
             \SET story = {s}, edited = NOW() \
             \WHERE story_no = {n} AND (author = {memberNumber m} OR {memberNumber m} = 1)") ?db
 
-linkStories :: E (Integer -> IO [Story])
+linkStories :: E (Int32 -> IO [Story])
 linkStories linkNo = map mkStory <$> $(queryTuples
     "SELECT story_no, story, edited, member_no, username, email \
     \FROM linkword_story s INNER JOIN member m ON (m.member_no = s.author) \

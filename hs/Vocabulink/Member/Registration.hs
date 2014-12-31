@@ -35,6 +35,7 @@ import Vocabulink.Review
 import Vocabulink.Utils
 
 import qualified Data.ByteString.Lazy.UTF8 as BLU
+import Data.Int (Int32)
 
 import Prelude hiding (div, id, span)
 
@@ -80,7 +81,7 @@ signup = do
   liftIO $ mapM_ (newReview m) learned
   setCookie =<< liftIO (authCookie memberNo)
   bounce MsgSuccess "Welcome! Please check your email to confirm your account."
- where parseLearned :: String -> Maybe [Integer]
+ where parseLearned :: String -> Maybe [Int32]
        parseLearned = decode . BLU.fromString
 
 -- This should be in the App monad and look up the support address itself.

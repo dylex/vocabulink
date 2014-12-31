@@ -36,8 +36,13 @@ import Vocabulink.Member
 import Vocabulink.Page
 import Vocabulink.Utils
 
+import Data.Aeson.TH (Options(..), defaultOptions)
 import qualified Data.ByteString.Lazy.UTF8 as BLU
+import Data.Int (Int32, Int64)
+import Data.List (genericLength)
 import Data.Time.Calendar (toGregorian)
+import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
+import Data.Time.LocalTime (utcToLocalZonedTime)
 
 import Prelude hiding (div, span, id)
 
@@ -55,7 +60,7 @@ import Prelude hiding (div, span, id)
 -- that they're reviewing the link now). However, this is a good candidate for
 -- an asynchronous JavaScript call.
 
-newReview :: E (Member -> Integer -> IO ())
+newReview :: E (Member -> Int32 -> IO ())
 newReview m linkNo = insertIgnore $
   $(execute "INSERT INTO link_to_review (member_no, link_no) \
                                 \VALUES ({memberNumber m}, {linkNo})") ?db
@@ -75,20 +80,21 @@ newReview m linkNo = insertIgnore $
 
 -- All database updates during this process are wrapped in a transaction.
 
-scheduleNextReview :: E (Member -> Integer -> Float -> Integer -> EpochTime -> IO ())
+scheduleNextReview :: E (Member -> Int32 -> Float -> Int32 -> EpochTime -> IO ())
 scheduleNextReview m linkNo recallGrade recallTime reviewedAt = do
   previous <- fromJust <$> previousInterval m linkNo
   diff <- SM2.reviewInterval (memberNumber m) linkNo previous recallGrade
+  reviewedAtZT <- utcToLocalZonedTime $ posixSecondsToUTCTime $ realToFrac reviewedAt
   liftIO $ withTransaction ?db $ do
     $(execute
       "INSERT INTO link_review (member_no, link_no, recall_grade, recall_time, actual_time, \
                                \target_time) \
-                       \VALUES ({memberNumber m}, {linkNo}, {recallGrade}, {recallTime}, {reviewedAt}, \
+                       \VALUES ({memberNumber m}, {linkNo}, {recallGrade}, {recallTime}, {reviewedAtZT}, \
                                \(SELECT target_time FROM link_to_review \
                                 \WHERE member_no = {memberNumber m} AND link_no = {linkNo}))") ?db
     $(execute
       "UPDATE link_to_review \
-      \SET target_time = {reviewedAt}::timestamp with time zone + {diff}::interval \
+      \SET target_time = {reviewedAtZT}::timestamp with time zone + {diff}::interval \
       \WHERE member_no = {memberNumber m} AND link_no = {linkNo}") ?db
 
 -- There are at least 2 ways to decide which links should be brought up for
@@ -123,12 +129,13 @@ dueForReview m learn' known' n = map (uncurryN Link) <$> $(queryTuples
     \AND learn_lang = {learn'} AND known_lang = {known'} \
     \AND NOT deleted \
   \ORDER BY added_time ASC \
-  \LIMIT {n}") ?db
+  \LIMIT {fromIntegral n :: Int64}") ?db
 
 -- First, use words with existing stories. Second, use linkwords or
 -- soundalikes. Finally, use whatever.
 newForReview :: E (String -> String -> Int -> IO [Link])
-newForReview learn' known' n =
+newForReview learn' known' n' =
+  let n = fromIntegral n' :: Int64 in
   case ?member of
     Nothing -> do
       storied <- map (uncurryN Link) <$> $(queryTuples
@@ -138,7 +145,7 @@ newForReview learn' known' n =
         \WHERE learn_lang = {learn'} AND known_lang = {known'} \
           \AND NOT deleted \
         \ORDER BY random() LIMIT {n}") ?db
-      if length storied >= n
+      if genericLength storied >= n
         then return storied
         else do
           special <- map (uncurryN Link) <$> $(queryTuples
@@ -149,8 +156,8 @@ newForReview learn' known' n =
               \AND ss.link_no IS NULL \
               \AND (soundalike OR linkword IS NOT NULL) \
               \AND NOT deleted \
-            \ORDER BY random() LIMIT {n - length storied}") ?db
-          if length storied + length special >= n
+            \ORDER BY random() LIMIT {n - genericLength storied}") ?db
+          if genericLength storied + genericLength special >= n
             then return $ storied ++ special
             else do
               plain <- map (uncurryN Link) <$> $(queryTuples
@@ -159,7 +166,7 @@ newForReview learn' known' n =
                 \WHERE learn_lang = {learn'} AND known_lang = {known'} \
                   \AND (NOT soundalike AND linkword IS NULL) \
                   \AND NOT deleted \
-                \ORDER BY random() LIMIT {n - length storied - length special}") ?db
+                \ORDER BY random() LIMIT {n - genericLength storied - genericLength special}") ?db
               return $ storied ++ special ++ plain
     Just m -> do
       storied <- map (uncurryN Link) <$> $(queryTuples
@@ -171,7 +178,7 @@ newForReview learn' known' n =
           \AND r.link_no IS NULL \
           \AND NOT deleted \
         \ORDER BY random() LIMIT {n}") ?db
-      if length storied >= n
+      if genericLength storied >= n
         then return storied
         else do
           special <- map (uncurryN Link) <$> $(queryTuples
@@ -183,8 +190,8 @@ newForReview learn' known' n =
               \AND r.link_no IS NULL AND ss.link_no IS NULL \
               \AND (soundalike OR linkword IS NOT NULL) \
               \AND NOT deleted \
-            \ORDER BY random() LIMIT {n - length storied}") ?db
-          if length storied + length special >= n
+            \ORDER BY random() LIMIT {n - genericLength storied}") ?db
+          if genericLength storied + genericLength special >= n
             then return $ storied ++ special
             else do
               plain <- map (uncurryN Link) <$> $(queryTuples
@@ -195,7 +202,7 @@ newForReview learn' known' n =
                   \AND r.link_no IS NULL \
                   \AND (NOT soundalike AND linkword IS NULL) \
                   \AND NOT deleted \
-                \ORDER BY random() LIMIT {n - length storied - length special}") ?db
+                \ORDER BY random() LIMIT {n - genericLength storied - genericLength special}") ?db
               return $ storied ++ special ++ plain
 
 -- In order to determine the next review interval, the review scheduling
@@ -207,9 +214,9 @@ newForReview learn' known' n =
 -- that the review algorithm does not have to be used for determining the first
 -- review (immediate).
 
-previousInterval :: E (Member -> Integer -> IO (Maybe DiffTime))
+previousInterval :: E (Member -> Int32 -> IO (Maybe DiffTime))
 previousInterval m linkNo =
-  (secondsToDiffTime . fromJust) <$$> $(queryTuple
+  (secondsToDiffTime . toInteger . fromJust) <$$> $(queryTuple
     "SELECT COALESCE(extract(epoch from current_timestamp - \
                             \(SELECT actual_time FROM link_review \
                              \WHERE member_no = {memberNumber m} AND link_no = {linkNo} \
@@ -229,9 +236,9 @@ reviewStats m = do
   links <- fromJust . fromJust <$> $(queryTuple
     "SELECT COUNT(*) FROM link_to_review \
     \WHERE member_no = {memberNumber m}") ?db
-  return $ object [ "due" .= (due :: Integer)
-                  , "reviews" .= (reviews :: Integer)
-                  , "links" .= (links :: Integer)
+  return $ object [ "due" .= due
+                  , "reviews" .= reviews
+                  , "links" .= links
                   ]
 
 dailyReviewStats :: E (Member -> Day -> Day -> String -> IO [Value])
@@ -253,12 +260,12 @@ dailyReviewStats m start end tzOffset = do
   return $ map reviewJSON reviews ++ map scheduledJSON scheduled
  where reviewJSON (day, links, recallTime) =
          object [ "date" .= (toGregorian $ fromJust day)
-                , "reviewed" .= (fromJust links ::Integer)
-                , "recallTime" .= (fromJust recallTime :: Integer)
+                , "reviewed" .= (fromJust links)
+                , "recallTime" .= (fromJust recallTime)
                 ]
        scheduledJSON (day, links) =
          object [ "date" .= (toGregorian $ fromJust day)
-                , "scheduled" .= (fromJust links :: Integer)
+                , "scheduled" .= (fromJust links)
                 ]
 
 detailedReviewStats :: E (Member -> Day -> Day -> String -> IO Value)
@@ -281,15 +288,15 @@ detailedReviewStats m start end tzOffset = do
     \ORDER BY target_time") ?db
   return $ object ["reviewed" .= map reviewJSON reviews, "scheduled" .= map scheduledJSON scheduled]
  where reviewJSON (linkNo, time, grade, learn, known) =
-         object [ "linkNumber" .= (linkNo :: Integer)
-                , "time" .= (fromJust time :: Integer)
+         object [ "linkNumber" .= (linkNo)
+                , "time" .= (fromJust time)
                 , "grade" .= (round (grade * 5) :: Integer)
                 , "learn" .= learn
                 , "known" .= known
                 ]
        scheduledJSON (linkNo, time, learn, known) = do
-         object [ "linkNumber" .= (linkNo :: Integer)
-                , "time" .= (fromJust time :: Integer)
+         object [ "linkNumber" .= (linkNo)
+                , "time" .= (fromJust time)
                 , "learn" .= learn
                 , "known" .= known
                 ]
@@ -326,11 +333,11 @@ upcomingLinks learn known n = do
   new <- newForReview learn known (n - length due)
   return $ object ["review" .= map compactLinkJSON due, "learn" .= map compactLinkJSON new]
 
-data ClientLinkSync = ClientLinkSync { clientRetain :: [Integer] }
+data ClientLinkSync = ClientLinkSync { clientRetain :: [Int32] }
 
-$(deriveFromJSON ((\(x:xs) -> (toLower x):xs) . drop 6) ''ClientLinkSync)
+$(deriveFromJSON defaultOptions{ fieldLabelModifier = (\(x:xs) -> (toLower x):xs) . drop 6 } ''ClientLinkSync)
 
-syncLinks :: E (Member -> [Integer] -> IO Value)
+syncLinks :: E (Member -> [Int32] -> IO Value)
 syncLinks m retained = do
   reviewing <- reviewingLinks
   forM_ (retained \\ (map linkNumber reviewing)) $ newReview m

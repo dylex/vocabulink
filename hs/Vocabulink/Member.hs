@@ -29,10 +29,11 @@ import Vocabulink.Utils
 import qualified Data.ByteString.Lazy.Char8 as BC8
 import qualified Data.ByteString.UTF8 as BU
 import Data.Digest.Pure.SHA (hmacSha1, showDigest)
+import Data.Int (Int32)
 import Language.Haskell.TH.Syntax (runIO, Exp(..), Lit(..))
 import Web.Cookie (SetCookie(..))
 
-data Member = Member { memberNumber :: Integer
+data Member = Member { memberNumber :: Int32
                      , memberName   :: String
                      , memberEmail  :: Maybe String
                      } deriving (Eq, Show)
@@ -53,7 +54,7 @@ instance ToJSON Member where
 authTokenKey :: String
 authTokenKey = $((LitE . StringL) `liftM` runIO ((head . lines) `liftM` Prelude.readFile "auth-token-key"))
 
-data AuthToken = AuthToken { authMemberNumber  :: Integer
+data AuthToken = AuthToken { authMemberNumber  :: Int32
                            , authExpiry        :: EpochTime
                            , authDigest        :: String -- HMAC hash
                            }
@@ -81,7 +82,7 @@ instance Read AuthToken where
 
 -- | Create an AuthToken with the default expiration time, automatically
 -- calculating the digest.
-authToken :: Integer -> IO AuthToken
+authToken :: Int32 -> IO AuthToken
 authToken memberNo = do
   now <- epochTime
   let expires = now + authShelfLife
@@ -105,7 +106,7 @@ tokenDigest a = showDigest $ hmacSha1 (BC8.pack authTokenKey) (BC8.pack token)
 -- -- Setting the cookie is rather simple by this point. We just create the auth
 -- -- token and send it to the client.
 
-authCookie :: Integer -> IO SetCookie
+authCookie :: Int32 -> IO SetCookie
 authCookie memberNo = do
   token <- authToken memberNo
   return $ emptyAuthCookie { setCookieValue  = BU.fromString $ show token

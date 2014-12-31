@@ -29,11 +29,12 @@ import Vocabulink.Member
 import Vocabulink.Utils
 
 import qualified Data.ByteString.Lazy.UTF8 as BLU
-import Database.TemplatePG.Protocol (executeSimpleQuery)
-import Database.TemplatePG.SQL (thConnection)
+import Data.Int (Int64)
+import Database.TemplatePG.Protocol (PGConnection, pgSimpleQuery)
+import Database.TemplatePG.Connection (withTHConnection)
 import Language.Haskell.TH.Syntax (runIO, Exp(..), Lit(..))
 
-type E a = (?db::Handle, ?member::Maybe Member, ?numDue::Integer) => a
+type E a = (?db::PGConnection, ?member::Maybe Member, ?numDue::Int64) => a
 
 mainDir :: String
 mainDir = "/home/jekor/vocabulink"
@@ -46,11 +47,11 @@ compileYear :: Int
 compileYear = $((LitE . IntegerL) `liftM` runIO currentYear)
 
 languages :: [(String, String)]
-languages = $(runIO (do h <- thConnection
-                        res <- executeSimpleQuery "SELECT abbr, name FROM language" h
+languages = $(runIO $ withTHConnection $ \h -> do
+                        (_, res) <- pgSimpleQuery h "SELECT abbr, name FROM language"
                         return $ ListE $ map (\[Just abbr, Just name] ->
                                                  TupE [ LitE $ StringL $ BLU.toString abbr
-                                                      , LitE $ StringL $ BLU.toString name]) res))
+                                                      , LitE $ StringL $ BLU.toString name]) res)
 
 -- | Only perform the given action if the user is authenticated and has
 -- verified their email address. This provides a ``logged out default'' of

@@ -58,10 +58,11 @@ import Prelude hiding (div, span, id, words)
 import Control.Concurrent (forkIO)
 import Control.Exception (finally, SomeException)
 import Control.Monad (forever)
-import Control.Monad.Catch (MonadCatch(..), MonadThrow(..))
+import Control.Monad.Catch (MonadCatch(..))
 import Control.Monad.State (State, runState, get, put)
 import qualified Data.ByteString.UTF8 as BU
 import qualified Data.ByteString.Lazy.UTF8 as BLU
+import Data.Int (Int32, Int64)
 import Data.List (find, genericLength)
 import Database.TemplatePG (pgConnect)
 import Network (PortID(..), accept)
@@ -442,7 +443,7 @@ dispatch _ _ = return notFound
 
 frontPage :: E (IO Html)
 frontPage = do
-  let limit = 40
+  let limit = 40 :: Int64
   words <- case ?member of
     -- Logged in? Use the words the person has learned.
     Just m -> $(queryTuples
@@ -470,15 +471,15 @@ frontPage = do
         div ! id "intro" $ do
           h1 "Learn Vocabulary—Fast"
           p $ do
-            toMarkup $ "Learn foreign words with " ++ prettyPrint (nLinkwords::Integer) ++ " "
+            toMarkup $ "Learn foreign words with " ++ prettyPrint nLinkwords ++ " "
             a ! href "article/how-do-linkword-mnemonics-work" $ "linkword mnemonics"
-            toMarkup $ " and " ++ prettyPrint (nStories::Integer) ++ " accompanying stories."
+            toMarkup $ " and " ++ prettyPrint nStories ++ " accompanying stories."
           p $ do
             "Retain the words through "
             a ! href "article/how-does-spaced-repetition-work" $ "spaced repetition"
-            toMarkup $ " (" ++ prettyPrint (nReviews::Integer) ++ " reviews to-date)."
+            toMarkup $ " (" ++ prettyPrint nReviews ++ " reviews to-date)."
           p $ do
-            toMarkup $ prettyPrint (nEsLinks::Integer) ++ " of the "
+            toMarkup $ prettyPrint nEsLinks ++ " of the "
             a ! href "article/why-study-words-in-order-of-frequency" $ "most common"
             " Spanish words await you. More mnemonics and stories are being added weekly. The service is free."
           p ! id "try-now" $ do
@@ -492,13 +493,13 @@ frontPage = do
 data WordStyle = WordStyle (Float, Float) (Float, Float) Int Int
   deriving (Show, Eq)
 
-wordCloud :: [(String, Integer)] -> Int -> Int -> Int -> Int -> Int -> IO Html
+wordCloud :: [(String, Int32)] -> Int -> Int -> Int -> Int -> Int -> IO Html
 wordCloud words width' height' fontMin fontMax numClasses = do
   gen <- getStdGen
   let (styles, (newGen, _)) = runState (mapM (wordStyle . fst) words) (gen, [])
   setStdGen newGen
   return $ mconcat $ catMaybes $ zipWith (\ w s -> liftM (wordTag w) s) words styles
- where wordTag :: (String, Integer) -> WordStyle -> Html
+ where wordTag :: (String, Int32) -> WordStyle -> Html
        wordTag (word, linkNo) (WordStyle (x, y) _ classNum fontSize) =
          let style' = "font-size: " ++ show fontSize ++ "px; "
                    ++ "left: " ++ show x ++ "%; " ++ "top: " ++ show y ++ "%;" in

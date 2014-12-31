@@ -21,8 +21,8 @@ Build-Type:    Simple
 
 Executable vocabulink.cgi
   Main-Is:       Vocabulink.hs
-  Build-Depends: aeson >= 0.6,
-                 aeson-qq,
+  Build-Depends: aeson >= 0.7,
+                 aeson-qq >= 0.7,
                  applicative-extras,
                  base >= 4,
                  blaze-builder,
@@ -45,7 +45,6 @@ Executable vocabulink.cgi
                  network >= 2.6,
                  network-uri >= 2.6,
                  old-locale,
-                 old-time,
                  pandoc > 1.8,
                  parsec,
                  process,
@@ -56,7 +55,7 @@ Executable vocabulink.cgi
                  sscgi >= 0.3.0,
                  syb,
                  template-haskell,
-                 templatepg >= 0.2.6,
+                 templatepg >= 0.3.0,
                  text,
                  time,
                  tuple,

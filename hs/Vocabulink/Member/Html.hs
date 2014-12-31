@@ -88,8 +88,8 @@ studyStats m = do
     "SELECT COUNT(*) FROM link_to_review WHERE member_no = {memberNumber m}") ?db
   numReviews <- fromJust . fromJust <$> $(queryTuple
     "SELECT COUNT(*) FROM link_review WHERE member_no = {memberNumber m}") ?db
-  return $ tableOfPairs [ ("# of links in review", prettyPrint (numLinks::Integer))
-                        , ("# of reviews", prettyPrint (numReviews::Integer))
+  return $ tableOfPairs [ ("# of links in review", prettyPrint numLinks)
+                        , ("# of reviews", prettyPrint numReviews)
                         ]
 
 dashboardPage :: E (Html)

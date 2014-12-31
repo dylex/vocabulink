@@ -23,6 +23,7 @@ import Vocabulink.Member
 import Vocabulink.Utils
 
 import qualified Data.ByteString.Lazy.UTF8 as BLU
+import Data.Int (Int64)
 import System.Directory (getDirectoryContents)
 import System.IO.Unsafe (unsafePerformIO)
 import System.Posix.Files (getFileStatus, modificationTime)
@@ -192,6 +193,6 @@ searchBox = form ! class_ "search-box" ! action "/search" $ do
 -- TODO: Keep track of the number of links to review via JavaScript.
 reviewBox :: E (Member -> Html)
 reviewBox _ = a ! href "/learn?learn=es&known=en" ! class_ "review-box" $ message ?numDue
-  where message :: Integer -> Html
+  where message :: Int64 -> Html
         message 1 = strong "1" >> " word to review"
         message n = strong (toMarkup n) >> " words to review"

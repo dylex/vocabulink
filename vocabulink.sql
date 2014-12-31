@@ -1,6 +1,8 @@
 -- vocabulink.sql
 
 CREATE EXTENSION tablefunc;
+CREATE EXTENSION unaccent;
+CREATE EXTENSION pgcrypto;
 
 -- I would use regexp checks and domains at the database level if they worked
 -- for unicode characters. Instead, I'll leave it up to the Haskell layer to do

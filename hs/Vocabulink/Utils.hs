@@ -102,6 +102,7 @@ import Data.Convertible (convert)
 import Data.Default (def)
 import Data.Digest.Pure.MD5 (md5)
 import Data.Either.Utils (forceEither) -- MissingH
+import Data.Int (Int64)
 import Data.List (intercalate, (\\), nub)
 import Data.List.Split (splitOn, splitEvery)
 import Data.List.Utils as LU -- MissingH
@@ -116,7 +117,7 @@ import Data.Bool.HT (if')
 import Data.Time.Calendar (Day, toGregorian)
 import Data.Time.Clock (UTCTime, DiffTime, getCurrentTime, diffUTCTime, secondsToDiffTime)
 import Data.Time.Format (formatTime, readTime, FormatTime(..))
-import Data.Time.LocalTime (getCurrentTimeZone, utcToLocalTime, utcToZonedTime, utc, LocalTime(..))
+import Data.Time.LocalTime (getCurrentTimeZone, utcToLocalTime, utcToZonedTime, utc, LocalTime(..), ZonedTime)
 import Data.Tuple.Curry (uncurryN)
 import Network.URI (escapeURIString, isUnescapedInURI, URI(..), uriQuery)
 import System.Directory (getPermissions, doesFileExist, readable)
@@ -290,6 +291,8 @@ class PrettyPrint a where
 
 instance PrettyPrint Integer where
   prettyPrint = reverse . intercalate "," . splitEvery 3 . reverse . show
+instance PrettyPrint Int64 where
+  prettyPrint = prettyPrint . toInteger
 
 -- TODO: instance PrettyPrint Float
 
@@ -297,6 +300,9 @@ instance PrettyPrint Day where
   prettyPrint = formatTime defaultTimeLocale "%F"
 
 instance PrettyPrint UTCTime where
+  prettyPrint = formatTime defaultTimeLocale "%F %R"
+
+instance PrettyPrint ZonedTime where
   prettyPrint = formatTime defaultTimeLocale "%F %R"
 
 escapeURIString' :: String -> String

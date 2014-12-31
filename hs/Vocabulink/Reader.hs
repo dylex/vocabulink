@@ -27,6 +27,8 @@ import Vocabulink.Utils
 
 import Prelude hiding (div, id, span)
 
+import Data.Int (Int32)
+
 readerTitlePage :: E (String -> String -> IO (Maybe Html))
 readerTitlePage lang name' = do
   readerTitlePage' <$$> $(queryTuple "SELECT title, description FROM reader WHERE short_name = {name'} AND lang = {lang}") ?db
@@ -46,7 +48,7 @@ readerTitlePage lang name' = do
              div ! style "clear: both" $ mempty -- We can't use overflow: hidden here.
        language = fromMaybe "Unknown Language" $ lookup lang languages
 
-readerPage :: E (String -> String -> Int -> IO (Maybe Html))
+readerPage :: E (String -> String -> Int32 -> IO (Maybe Html))
 readerPage lang name' page = do
   row <- $(queryTuple "SELECT title, body, (SELECT MAX(page_no) \
                                            \FROM reader_page \
