@@ -64,8 +64,8 @@ import qualified Data.ByteString.UTF8 as BU
 import qualified Data.ByteString.Lazy.UTF8 as BLU
 import Data.Int (Int32, Int64)
 import Data.List (find, genericLength)
-import Database.TemplatePG (pgConnect)
-import Network (PortID(..), accept)
+import Database.TemplatePG (pgConnect, defaultPGDatabase, PGDatabase(..))
+import Network (accept)
 import Network.Socket (listen, Socket(..), getAddrInfo, socket, Family(..), SocketType(..), defaultProtocol, bind, addrAddress, SocketOption(..), setSocketOption)
 import qualified Network.SCGI as SCGI
 import Network.URI (unEscapeString)
@@ -94,7 +94,7 @@ main = do
 
 handleRequest :: SCGI Response
 handleRequest = do
-  db <- liftIO $ pgConnect "localhost" (PortNumber 5432) "vocabulink" "vocabulink" dbPassword
+  db <- liftIO $ pgConnect $ defaultPGDatabase { pgDBName = "vocabulink", pgDBUser = "vocabulink", pgDBPass = dbPassword }
   member <- loggedIn db
   -- This is here to avoid IO in the Page module.
   due <- case member of
