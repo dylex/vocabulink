@@ -29,6 +29,7 @@ import Vocabulink.Member
 import Vocabulink.Utils
 
 import qualified Data.ByteString.Lazy.UTF8 as BLU
+import Data.Foldable (toList)
 import Data.Int (Int64)
 import Database.TemplatePG.Protocol (PGConnection, pgSimpleQuery)
 import Database.TemplatePG.Connection (withTHConnection)
@@ -49,7 +50,7 @@ compileYear = $((LitE . IntegerL) `liftM` runIO currentYear)
 languages :: [(String, String)]
 languages = $(runIO $ withTHConnection $ \h -> do
                         (_, res) <- pgSimpleQuery h "SELECT abbr, name FROM language"
-                        return $ ListE $ map (\[Just abbr, Just name] ->
+                        return $ ListE $ toList $ fmap (\[Just abbr, Just name] ->
                                                  TupE [ LitE $ StringL $ BLU.toString abbr
                                                       , LitE $ StringL $ BLU.toString name]) res)
 
